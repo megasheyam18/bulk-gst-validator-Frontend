@@ -25,7 +25,7 @@ const theme = createTheme({
   }
 })
 
-const API_BASE = '/api/gst'
+const API_BASE = import.meta.env.VITE_API_BASE || '/api/gst'
 
 const COLORS = {
   primary: '#1976d2',
@@ -310,7 +310,10 @@ function App() {
         body: formData
       })
 
-      if (!response.ok) throw new Error('Upload failed')
+      if (!response.ok) {
+        const errText = await response.text()
+        throw new Error(errText || 'Upload failed')
+      }
 
       const data = await response.json()
       setBatchId(data.batchId)
@@ -345,9 +348,23 @@ function App() {
     }
   }
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!batchId) return
-    window.open(`${API_BASE}/download/${batchId}`, '_blank')
+    try {
+      const response = await fetch(`${API_BASE}/download/${batchId}`)
+      if (!response.ok) throw new Error('Download failed')
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `gst_validation_${batchId}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      showSnackbar('Download failed: ' + error.message, 'error')
+    }
   }
 
   const handleReset = () => {
@@ -405,11 +422,13 @@ function App() {
             open={snackbar.open}
             autoHideDuration={6000}
             onClose={() => setSnackbar({ ...snackbar, open: false })}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
           >
             <Alert
               onClose={() => setSnackbar({ ...snackbar, open: false })}
               severity={snackbar.severity}
               variant="filled"
+              sx={{ width: '100%' }}
             >
               {snackbar.message}
             </Alert>
